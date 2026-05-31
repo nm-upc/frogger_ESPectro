@@ -1,5 +1,8 @@
 # 🎮 Plantilla de Joc per a ESPectro (ESP32-S3)
 
+Implementación del clásico Flappy Bird para la consola portátil ESPectro (ESP32-S3).
+
+Parte del proyecto ESPectro — [base_espectro](https://github.com/bf-upc/base_espectro)
 ## 📖 Descripció
 
 Aquesta plantilla proporciona una base completa per desenvolupar videojocs per a la consola **ESPectro**, basada en un **ESP32-S3** amb pantalla TFT, joystick, botons físics, àudio I2S, sistema de rècords persistents, dashboard web i actualització OTA mitjançant Game Loader.
