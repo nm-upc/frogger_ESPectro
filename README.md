@@ -1,4 +1,4 @@
-# 🎮 Plantilla de Joc per a ESPectro (ESP32-S3)
+# 🐸 Frogger
 
 Implementación del clásico Flappy Bird para la consola portátil ESPectro (ESP32-S3).
 
