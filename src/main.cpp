@@ -725,7 +725,14 @@ void runGame() {
     while (true) {
         if (millis()-lastFrame < 30) continue;
         lastFrame=millis();
-        if (digitalRead(BTN_B_PIN)==LOW) return;
+        if (digitalRead(BTN_B_PIN)==LOW) {
+            if (fgScore > bestScore) {
+                if (xSemaphoreTake(recordMutex,pdMS_TO_TICKS(200))==pdTRUE) {
+                    saveRecord(fgScore); xSemaphoreGive(recordMutex);
+                }
+            }
+            return;
+        }
 
         int rawX=analogRead(JOY_X_PIN), rawY=analogRead(JOY_Y_PIN);
         int dx=(rawX<1748)?-1:(rawX>2348)?1:0;
@@ -795,8 +802,10 @@ void runGame() {
                             tft.setTextColor(TFT_RED,TFT_BLACK); tft.setTextSize(3);
                             tft.setCursor(50,200); tft.print("GAME OVER");
                             delay(2000);
-                            if (xSemaphoreTake(recordMutex,pdMS_TO_TICKS(200))==pdTRUE) {
-                                saveRecord(fgScore); xSemaphoreGive(recordMutex);
+                            if (fgScore > bestScore) {
+                                if (xSemaphoreTake(recordMutex,pdMS_TO_TICKS(200))==pdTRUE) {
+                                    saveRecord(fgScore); xSemaphoreGive(recordMutex);
+                                }
                             }
                             return;
                         }
