@@ -1,6 +1,6 @@
 # 🐸 Frogger
 
-Implementación del clásico Flappy Bird para la consola portátil ESPectro (ESP32-S3).
+Implementación del clásico Frogger para la consola portátil ESPectro (ESP32-S3).
 
 Parte del proyecto ESPectro — [base_espectro](https://github.com/bf-upc/base_espectro)
 ## Descripción
