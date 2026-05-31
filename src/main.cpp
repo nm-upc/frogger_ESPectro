@@ -664,14 +664,11 @@ void drawMenu(int bestScore) {
 #define FG_CELL 32
 #define FG_OX   ((SCREEN_W-FG_COLS*FG_CELL)/2)
 #define FG_OY   20
-// Row types: 0=safe, 1=cars, 2=logs
-// Rows: 0=goal(safe), 1-5=water/logs, 6=safe, 7-11=road/cars, 12=start(safe)
+
 struct FgVehicle { int x; int speed; int w; uint16_t color; bool dir; };
 #define FG_MAX_V 4
 FgVehicle fgVehicles[FG_ROWS][FG_MAX_V];
 int fgFrogX, fgFrogY, fgScore, fgLives;
-bool fgOnLog;
-unsigned long fgLastMove;
 
 void fgInitRow(int row) {
     for (int i=0;i<FG_MAX_V;i++) fgVehicles[row][i].w=0;
@@ -688,6 +685,7 @@ void fgInitRow(int row) {
             : tft.color565(150+random(80),random(60),random(60));
     }
 }
+
 void fgDrawRow(int row) {
     bool isWater=(row>=1&&row<=5);
     bool isSafe=(row==0||row==6||row==12);
@@ -700,6 +698,7 @@ void fgDrawRow(int row) {
         tft.fillRect(x, y+2, fgVehicles[row][i].w, FG_CELL-4, fgVehicles[row][i].color);
     }
 }
+
 void fgDrawFrog(bool erase) {
     int x=FG_OX+fgFrogX*FG_CELL, y=FG_OY+fgFrogY*FG_CELL;
     if (erase) { fgDrawRow(fgFrogY); return; }
@@ -708,52 +707,54 @@ void fgDrawFrog(bool erase) {
     tft.fillRect(x+FG_CELL-12, y+6, 6, 6, TFT_WHITE);
 }
 
-
 // ============================================================
-//  TODO: LÒGICA DEL JOC
+//  LÒGICA DEL JOC
 // ============================================================
 void runGame() {
     int bestScore = loadRecord();
-    fgFrogX=FG_COLS/2; fgFrogY=FG_ROWS-1; fgScore=0; fgLives=3; fgOnLog=false;
+    fgFrogX=FG_COLS/2; fgFrogY=FG_ROWS-1; fgScore=0; fgLives=3;
     for (int r=0;r<FG_ROWS;r++) fgInitRow(r);
 
     tft.fillScreen(TFT_BLACK);
     for (int r=0;r<FG_ROWS;r++) fgDrawRow(r);
     fgDrawFrog(false);
 
-    unsigned long lastFrame=millis(), lastVMove=millis();
-    bool aPrev=false;
+    unsigned long lastFrame=millis(), lastVMove=millis(), lastFrogMove=0;
+    bool justReset = false; // 🔴 evita col·lisió immediata després de reinici
 
     while (true) {
         if (millis()-lastFrame < 30) continue;
         lastFrame=millis();
         if (digitalRead(BTN_B_PIN)==LOW) return;
 
-        bool btnA=(digitalRead(BTN_A_PIN)==LOW);
         int rawX=analogRead(JOY_X_PIN), rawY=analogRead(JOY_Y_PIN);
         int dx=(rawX<1748)?-1:(rawX>2348)?1:0;
-        int dy=(rawY<1748)?1:(rawY>2348)?-1:0; // Y invertit: avall=+1 fileres
+        int dy=(rawY<1748)?-1:(rawY>2348)?1:0;
 
-        // Move frog on button press edge
-        if (btnA && !aPrev) {
+        // 🟡 Prioritza moviment vertical, evita diagonal
+        if (dy != 0) dx = 0;
+
+        bool joystickMoved=(dx!=0||dy!=0);
+        if (joystickMoved && millis()-lastFrogMove > 200) {
             fgDrawFrog(true);
-            int nx=constrain(fgFrogX+dx, 0, FG_COLS-1);
-            int ny=constrain(fgFrogY+dy, 0, FG_ROWS-1);
-            fgFrogX=nx; fgFrogY=ny;
+            fgFrogX=constrain(fgFrogX+dx, 0, FG_COLS-1);
+            fgFrogY=constrain(fgFrogY+dy, 0, FG_ROWS-1);
             fgDrawFrog(false);
+            lastFrogMove=millis();
+
             if (fgFrogY==0) {
                 fgScore++;
+                if (fgScore>bestScore) bestScore=fgScore;
                 playTone(523,80,0.1f); playTone(659,80,0.1f); playTone(784,120,0.1f);
                 fgFrogX=FG_COLS/2; fgFrogY=FG_ROWS-1;
+                for (int r=0;r<FG_ROWS;r++) fgDrawRow(r);
                 fgDrawFrog(false);
-                // HUD
-                tft.setTextSize(1); tft.setTextColor(TFT_WHITE,TFT_BLACK);
-                tft.setCursor(2,2); tft.printf("Punts:%d Vides:%d Rec:%d", fgScore, fgLives, bestScore);
+                justReset=true; // 🔴 marca reinici
             }
+            tft.setTextSize(1); tft.setTextColor(TFT_WHITE,TFT_BLACK);
+            tft.setCursor(2,2); tft.printf("Pts:%d Vides:%d Rec:%d   ", fgScore, fgLives, bestScore);
         }
-        aPrev=btnA;
 
-        // Move vehicles
         if (millis()-lastVMove > 80) {
             for (int r=1;r<=11;r++) {
                 if (r==6) continue;
@@ -761,47 +762,50 @@ void runGame() {
                     if (!fgVehicles[r][i].w) continue;
                     fgVehicles[r][i].x += fgVehicles[r][i].speed;
                     int minX=FG_OX-fgVehicles[r][i].w, maxX=FG_OX+FG_COLS*FG_CELL;
-                    if (fgVehicles[r][i].x > maxX) fgVehicles[r][i].x = minX;
-                    if (fgVehicles[r][i].x < minX) fgVehicles[r][i].x = maxX;
+                    if (fgVehicles[r][i].x>maxX) fgVehicles[r][i].x=minX;
+                    if (fgVehicles[r][i].x<minX) fgVehicles[r][i].x=maxX;
                 }
                 fgDrawRow(r);
             }
-            // Redraw frog
             fgDrawFrog(false);
             lastVMove=millis();
 
-            // Collision check
-            int row=fgFrogY;
-            bool safe=(row==0||row==6||row==12);
-            bool isWater=(row>=1&&row<=5);
-            if (!safe) {
-                int fx=FG_OX+fgFrogX*FG_CELL+FG_CELL/2;
-                int fy=FG_OY+fgFrogY*FG_CELL+FG_CELL/2;
-                bool onVehicle=false;
-                for (int i=0;i<FG_MAX_V;i++) {
-                    if (!fgVehicles[row][i].w) continue;
-                    if (fx>=fgVehicles[row][i].x && fx<=fgVehicles[row][i].x+fgVehicles[row][i].w)
-                        onVehicle=true;
-                }
-                bool dead = isWater ? !onVehicle : onVehicle;
-                if (dead) {
-                    playTone(200,300,0.12f);
-                    fgLives--;
-                    fgFrogX=FG_COLS/2; fgFrogY=FG_ROWS-1;
-                    for (int r2=0;r2<FG_ROWS;r2++) fgDrawRow(r2);
-                    fgDrawFrog(false);
-                    if (fgLives<=0) {
-                        tft.setTextColor(TFT_RED,TFT_BLACK); tft.setTextSize(3);
-                        tft.setCursor(50,200); tft.print("GAME OVER");
-                        delay(2000);
-                        if (xSemaphoreTake(recordMutex, pdMS_TO_TICKS(200))==pdTRUE) {
-                            saveRecord(fgScore); xSemaphoreGive(recordMutex);
+            // 🔴 Collision check: salta si acabem de reiniciar
+            if (!justReset) {
+                int row=fgFrogY;
+                bool safe=(row==0||row==6||row==12);
+                bool isWater=(row>=1&&row<=5);
+                if (!safe) {
+                    int fx=FG_OX+fgFrogX*FG_CELL+FG_CELL/2;
+                    bool onVehicle=false;
+                    for (int i=0;i<FG_MAX_V;i++) {
+                        if (!fgVehicles[row][i].w) continue;
+                        if (fx>=fgVehicles[row][i].x && fx<=fgVehicles[row][i].x+fgVehicles[row][i].w)
+                            onVehicle=true;
+                    }
+                    bool dead=isWater?!onVehicle:onVehicle;
+                    if (dead) {
+                        playTone(200,300,0.12f);
+                        fgLives--;
+                        fgFrogX=FG_COLS/2; fgFrogY=FG_ROWS-1;
+                        for (int r2=0;r2<FG_ROWS;r2++) fgDrawRow(r2);
+                        fgDrawFrog(false);
+                        justReset=true; // 🔴 marca reinici també aquí
+                        if (fgLives<=0) {
+                            tft.setTextColor(TFT_RED,TFT_BLACK); tft.setTextSize(3);
+                            tft.setCursor(50,200); tft.print("GAME OVER");
+                            delay(2000);
+                            if (xSemaphoreTake(recordMutex,pdMS_TO_TICKS(200))==pdTRUE) {
+                                saveRecord(fgScore); xSemaphoreGive(recordMutex);
+                            }
+                            return;
                         }
-                        return;
                     }
                 }
+            } else {
+                justReset=false; // 🔴 un frame de gràcia, ara ja pot col·lisionar
             }
-            // HUD
+
             tft.setTextSize(1); tft.setTextColor(TFT_WHITE,TFT_BLACK);
             tft.setCursor(2,2); tft.printf("Pts:%d Vides:%d Rec:%d   ", fgScore, fgLives, bestScore);
         }
