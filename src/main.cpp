@@ -726,10 +726,8 @@ void runGame() {
         if (millis()-lastFrame < 30) continue;
         lastFrame=millis();
         if (digitalRead(BTN_B_PIN)==LOW) {
-            if (fgScore > bestScore) {
-                if (xSemaphoreTake(recordMutex,pdMS_TO_TICKS(200))==pdTRUE) {
-                    saveRecord(fgScore); xSemaphoreGive(recordMutex);
-                }
+            if (xSemaphoreTake(recordMutex,pdMS_TO_TICKS(200))==pdTRUE) {
+                saveRecord(fgScore); xSemaphoreGive(recordMutex);
             }
             return;
         }
@@ -802,10 +800,8 @@ void runGame() {
                             tft.setTextColor(TFT_RED,TFT_BLACK); tft.setTextSize(3);
                             tft.setCursor(50,200); tft.print("GAME OVER");
                             delay(2000);
-                            if (fgScore > bestScore) {
-                                if (xSemaphoreTake(recordMutex,pdMS_TO_TICKS(200))==pdTRUE) {
-                                    saveRecord(fgScore); xSemaphoreGive(recordMutex);
-                                }
+                            if (xSemaphoreTake(recordMutex,pdMS_TO_TICKS(200))==pdTRUE) {
+                                saveRecord(fgScore); xSemaphoreGive(recordMutex);
                             }
                             return;
                         }
